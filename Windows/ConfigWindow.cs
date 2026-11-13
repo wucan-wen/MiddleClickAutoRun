@@ -39,9 +39,26 @@ internal sealed class ConfigWindow : Window
         ImGui.TextDisabled("插件列表里的设置按钮（齿轮）可再次打开本窗口");
     }
 
+    private static readonly string[] ModeNames =
+    {
+        "跟随游戏自动前进（补回被技能打断的）",
+        "中键开关（按一次开始，再按一次停止）",
+    };
+
     private static void DrawSettings(Configuration config)
     {
         var changed = false;
+
+        ImGui.SetNextItemWidth(220f);
+        var mode = (int)config.Mode;
+        if (ImGui.Combo("工作模式", ref mode, ModeNames, ModeNames.Length))
+        {
+            config.Mode = (AutoRunMode)mode;
+            changed = true;
+        }
+
+        if (ImGui.IsItemHovered())
+            ImGui.SetTooltip("跟随游戏：用游戏自己的自动前进开关键，插件只负责补回被技能打断的；中键开关：插件自己把中键当开关，按一次一直保持前进，再按一次停止。");
 
         ImGui.SetNextItemWidth(220f);
         var grace = config.GraceMs;

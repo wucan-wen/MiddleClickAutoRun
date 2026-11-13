@@ -7,34 +7,34 @@ using FFXIVClientStructs.FFXIV.Client.Game.Control;
 namespace AutoRunKeeper.System;
 
 /// <summary>
-///     自动前进守护核心。
-///     开关就是鼠标中键：按一次开始「一直保持前进」，再按一次取消。
-///     保持的方式是直接读写游戏的自动前进标志（<see cref="AutoRunFlag"/>），不走聊天命令，
-///     所以技能一打断就能当帧补回来，不会一顿一顿。
-///     另外这些情况视为「我要自己控制」，会立刻取消：按 WASD、走到目标附近、用位移技能。
+///     自动前进守护核心。两套逻辑完全独立，由设置里的「工作模式」切换：
+///     · 跟随游戏（FollowGame）：用游戏自己的自动前进开关键，插件只补回被技能打断的部分。
+///     · 中键开关（MiddleMouse）：中键按一次一直保持前进，再按一次停止，插件自己维护状态。
+///     两套共用「用户接管」信号：按 WASD、走到目标附近、用位移技能，都会立刻停止。
 /// </summary>
 internal sealed unsafe class AutoRunGuard
 {
-    private const int VkLeftMouse = 0x01;
     private const int VkMiddleMouse = 0x04;
+    private const int VkRightMouse = 0x02;
 
     private bool intentOn;
     private bool wasBusy;
     private bool lastMiddleDown;
     private bool lastMoving;
+    private bool lastAutoRun;
     private long lastBusyAt = long.MinValue / 2;
     private long lastRecoverAt = long.MinValue / 2;
+    private long ignoreGameStateUntil;
     private int recoverCount;
     private float lastTargetDist = -1f;
     private bool targetStopArmed = true;
     private float idleFacing;
     private float facingBefore;
-    private long ignoreGameStateUntil;
     private long lastPosAt;
     private global::System.Numerics.Vector3 lastPos;
     private float peakSpeed;
 
-    /// <summary>用户意图：是否要保持前进（中键开的状态）。</summary>
+    /// <summary>用户意图：是否要保持前进。</summary>
     internal bool PlayerIntent => intentOn;
 
     /// <summary>游戏当前的真实自动前进状态。</summary>
@@ -44,10 +44,8 @@ internal sealed unsafe class AutoRunGuard
 
     internal float AnimationLock { get; private set; }
 
-    /// <summary>累计补回次数。</summary>
     internal int RecoverCount => recoverCount;
 
-    /// <summary>最近一次动作描述。</summary>
     internal string LastReason { get; private set; } = "还没触发过";
 
     internal long LastRecoverAt => lastRecoverAt;
@@ -87,7 +85,7 @@ internal sealed unsafe class AutoRunGuard
             peakSpeed = 0f;
         }
 
-        // 「继续原有面向」：技能动作期间压住朝向，避免被技能转过去后先往回走一小段
+        // 继续原有面向：技能动作期间压住朝向，避免被技能转过去后先往回走一小段
         if (Plugin.Config.KeepFacing && intentOn)
         {
             var drift = MathF.Abs(WrapAngle(rotation - facingBefore));
@@ -95,30 +93,13 @@ internal sealed unsafe class AutoRunGuard
                 RestoreFacing(facingBefore);
         }
 
-        // ---- 中键开关：按一次保持前进，再按一次取消 ----
-        var middleDown = IsMouseDown(VkMiddleMouse);
-        if (middleDown && !lastMiddleDown)
-        {
-            intentOn = !intentOn;
-            LastReason = intentOn ? "中键开启" : "中键取消";
+        // ---- 两套模式各自决定「要不要保持前进」 ----
+        if (Plugin.Config.Mode == AutoRunMode.MiddleMouse)
+            UpdateMiddleMouseMode(now, busy);
+        else
+            UpdateFollowGameMode(now, busy);
 
-            if (intentOn)
-                WriteForward(true);
-            else
-                WriteForward(false);
-
-            ignoreGameStateUntil = now + 800;
-            DalamudApi.Log.Information($"[Auto move on] 中键{(intentOn ? "开启" : "取消")}保持前进");
-        }
-
-        lastMiddleDown = middleDown;
-
-        // 兼容：你自己用游戏自己的自动前进键开起来，也算开启
-        // （刚按中键取消后的静默窗口内不生效，否则会被游戏里的旧状态立刻拉回开启）
-        if (!intentOn && GameAutoRun && now > ignoreGameStateUntil)
-            intentOn = true;
-
-        // ---- 以下都是「我要自己控制」的信号 ----
+        // ---- 共用的「我要自己控制」信号 ----
         var moving = ReadMoveInput();
         if (moving && !lastMoving && intentOn && !GameAutoRun)
             CancelByUser("手动移动输入（WASD）");
@@ -151,19 +132,59 @@ internal sealed unsafe class AutoRunGuard
             CancelByUser($"位移技能（{speed:0} 米/秒）");
         }
 
-        // ---- 保持前进 ----
-        if (intentOn && !GameAutoRun)
-            Recover(now, busy ? "技能打断后保持" : "补回前进");
-
-        if (GameAutoRun != lastAutoRunLogged)
+        if (GameAutoRun != lastAutoRun)
         {
             DalamudApi.Log.Debug(
-                $"[Auto move on] 自动前进变化 {lastAutoRunLogged} -> {GameAutoRun}（施法={IsCasting} 动画锁={AnimationLock:0.00} 意图={intentOn}）");
-            lastAutoRunLogged = GameAutoRun;
+                $"[Auto move on] 自动前进变化 {lastAutoRun} -> {GameAutoRun}（施法={IsCasting} 动画锁={AnimationLock:0.00} 意图={intentOn} 模式={Plugin.Config.Mode}）");
+            lastAutoRun = GameAutoRun;
         }
     }
 
-    private bool lastAutoRunLogged;
+    /// <summary>中键开关模式：中键切换，开着就一直维持前进。</summary>
+    private void UpdateMiddleMouseMode(long now, bool busy)
+    {
+        var middleDown = IsMouseDown(VkMiddleMouse);
+        if (middleDown && !lastMiddleDown)
+        {
+            intentOn = !intentOn;
+            ignoreGameStateUntil = now + 800;
+            LastReason = intentOn ? "中键开启" : "中键取消";
+
+            WriteForward(intentOn);
+            DalamudApi.Log.Information($"[Auto move on] 中键{(intentOn ? "开启" : "取消")}保持前进");
+        }
+
+        lastMiddleDown = middleDown;
+
+        // 你自己用游戏的开关键开起来也算开启（刚按过中键的静默窗口内不采信）
+        if (!intentOn && GameAutoRun && now > ignoreGameStateUntil)
+            intentOn = true;
+
+        if (intentOn && !GameAutoRun)
+            Recover(now, busy ? "技能打断后保持" : "补回前进");
+    }
+
+    /// <summary>跟随游戏模式：意图跟着游戏的自动前进状态走，只在技能上下文内补回。</summary>
+    private void UpdateFollowGameMode(long now, bool busy)
+    {
+        if (GameAutoRun && !lastAutoRun)
+            intentOn = true;
+
+        var inSkillWindow = busy || now - lastBusyAt <= Plugin.Config.GraceMs;
+
+        // 非技能上下文被关掉 = 用户自己停的
+        if (!GameAutoRun && lastAutoRun && !inSkillWindow)
+        {
+            intentOn = false;
+            LastReason = "用户手动关闭（不干预）";
+        }
+
+        // 右键按住 = 在调面向/视角，此时不补，避免反复重置导致移动一顿一顿
+        var rightMouseDown = IsMouseDown(VkRightMouse);
+
+        if (intentOn && !GameAutoRun && inSkillWindow && !rightMouseDown)
+            Recover(now, busy ? "技能动作中补回" : "技能结束后补回");
+    }
 
     /// <summary>统计清零。</summary>
     internal void ResetStats()
@@ -225,8 +246,7 @@ internal sealed unsafe class AutoRunGuard
     /// <summary>
     ///     把自动前进设为指定值。
     ///     开：优先直接写标志（快，技能打断能当帧续上），失败回退聊天命令。
-    ///     关：一律用游戏自己的命令 —— 直接写标志这个地址会被游戏当帧刷回，
-    ///     只有命令能真正把自动前进停掉。
+    ///     关：一律用游戏自己的命令 —— 直接写这个标志会被游戏当帧刷回，只有命令能真正停掉。
     /// </summary>
     private void WriteForward(bool value)
     {

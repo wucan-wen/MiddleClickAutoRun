@@ -3,9 +3,22 @@ using Dalamud.Plugin;
 
 namespace AutoRunKeeper;
 
+/// <summary>工作模式：两套逻辑互相独立，用设置里的下拉切换。</summary>
+public enum AutoRunMode
+{
+    /// <summary>跟随游戏的自动前进：用它自己的开关键，插件只负责补回被技能打断的。</summary>
+    FollowGame = 0,
+
+    /// <summary>中键开关：按一次一直保持前进，再按一次停止。</summary>
+    MiddleMouse = 1,
+}
+
 public sealed class Configuration : IPluginConfiguration
 {
     public int Version { get; set; } = 1;
+
+    /// <summary>工作模式。</summary>
+    public AutoRunMode Mode { get; set; } = AutoRunMode.MiddleMouse;
 
     /// <summary>技能结束后的守护时间窗（毫秒）。窗口外的关闭视为用户手动关闭。</summary>
     public int GraceMs { get; set; } = 500;
