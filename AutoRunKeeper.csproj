@@ -1,7 +1,7 @@
 <Project Sdk="Dalamud.NET.Sdk/15.0.0">
   <PropertyGroup>
     <Authors>自用</Authors>
-    <Version>1.2.0.0</Version>
+    <Version>1.2.0.1</Version>
     <Description>施法或技能打断自动前进后自动恢复，不用每次重新按 R。纯中文界面。</Description>
     <TargetFramework>net10.0-windows</TargetFramework>
     <Platforms>x64</Platforms>
