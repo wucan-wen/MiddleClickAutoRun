@@ -11,7 +11,7 @@ internal sealed class ConfigWindow : Window
     private readonly Plugin plugin;
 
     internal ConfigWindow(Plugin plugin)
-        : base("Auto move on###AutoRunKeeperConfig")
+        : base("MiddleClick AutoRun###AutoRunKeeperConfig")
     {
         this.plugin = plugin;
 

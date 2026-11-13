@@ -137,7 +137,7 @@ internal sealed unsafe class AutoRunGuard
             ReleaseForward();
         }
 
-        DalamudApi.Log.Information($"[Auto move on] {source}{(intentOn ? "开启" : "停止")}保持前进");
+        DalamudApi.Log.Information($"[MiddleClick AutoRun] {source}{(intentOn ? "开启" : "停止")}保持前进");
     }
 
     /// <summary>统计清零。</summary>
@@ -181,7 +181,7 @@ internal sealed unsafe class AutoRunGuard
         intentOn = false;
         LastReason = $"用户接管：{reason}";
 
-        DalamudApi.Log.Information($"[Auto move on] 用户接管（{reason}），停止前进");
+        DalamudApi.Log.Information($"[MiddleClick AutoRun] 用户接管（{reason}），停止前进");
         ReleaseForward();
     }
 
@@ -195,7 +195,7 @@ internal sealed unsafe class AutoRunGuard
         }
         catch (Exception ex)
         {
-            DalamudApi.Log.Error(ex, "[Auto move on] 按下左右键失败");
+            DalamudApi.Log.Error(ex, "[MiddleClick AutoRun] 按下左右键失败");
         }
     }
 
@@ -209,7 +209,7 @@ internal sealed unsafe class AutoRunGuard
         }
         catch (Exception ex)
         {
-            DalamudApi.Log.Error(ex, "[Auto move on] 松开左右键失败");
+            DalamudApi.Log.Error(ex, "[MiddleClick AutoRun] 松开左右键失败");
         }
     }
 
@@ -231,7 +231,7 @@ internal sealed unsafe class AutoRunGuard
         }
         catch (Exception ex)
         {
-            DalamudApi.Log.Error(ex, "[Auto move on] 读取移动输入失败");
+            DalamudApi.Log.Error(ex, "[MiddleClick AutoRun] 读取移动输入失败");
             return false;
         }
     }
@@ -250,7 +250,7 @@ internal sealed unsafe class AutoRunGuard
         }
         catch (Exception ex)
         {
-            DalamudApi.Log.Error(ex, "[Auto move on] 恢复朝向失败");
+            DalamudApi.Log.Error(ex, "[MiddleClick AutoRun] 恢复朝向失败");
         }
     }
 
@@ -321,7 +321,7 @@ internal sealed unsafe class AutoRunGuard
         }
         catch (Exception ex)
         {
-            DalamudApi.Log.Error(ex, "[Auto move on] 读取动画锁失败");
+            DalamudApi.Log.Error(ex, "[MiddleClick AutoRun] 读取动画锁失败");
             return 0f;
         }
     }

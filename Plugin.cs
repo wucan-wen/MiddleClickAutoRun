@@ -9,7 +9,7 @@ namespace AutoRunKeeper;
 
 public sealed class Plugin : IDalamudPlugin
 {
-    private readonly WindowSystem windowSystem = new("Auto move on");
+    private readonly WindowSystem windowSystem = new("MiddleClick AutoRun");
 
     public Plugin(IDalamudPluginInterface pluginInterface)
     {
@@ -31,10 +31,10 @@ public sealed class Plugin : IDalamudPlugin
         DalamudApi.Framework.Update += OnUpdate;
         DalamudApi.UiBuilder.Draw += windowSystem.Draw;
 
-        DalamudApi.Log.Information("[Auto move on] 已加载");
+        DalamudApi.Log.Information("[MiddleClick AutoRun] 已加载");
     }
 
-    public string Name => "Auto move on";
+    public string Name => "MiddleClick AutoRun";
 
     internal static Configuration Config { get; private set; } = null!;
 
@@ -54,7 +54,7 @@ public sealed class Plugin : IDalamudPlugin
         windowSystem.RemoveAllWindows();
         PluginFont.Dispose();
 
-        DalamudApi.Log.Information("[Auto move on] 已卸载");
+        DalamudApi.Log.Information("[MiddleClick AutoRun] 已卸载");
     }
 
     private void OnOpenConfigUi() => Window.IsOpen = true;
@@ -67,7 +67,7 @@ public sealed class Plugin : IDalamudPlugin
         }
         catch (Exception ex)
         {
-            DalamudApi.Log.Error(ex, "[Auto move on] 每帧逻辑异常");
+            DalamudApi.Log.Error(ex, "[MiddleClick AutoRun] 每帧逻辑异常");
         }
     }
 }

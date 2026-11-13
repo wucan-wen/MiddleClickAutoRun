@@ -1,4 +1,4 @@
-# Auto move on
+# MiddleClick AutoRun
 
 Dalamud（卫月）插件，API 15。中键开关前进：按一下一直走，再按一下停，放技能不打断。
 
@@ -12,7 +12,7 @@ Dalamud（卫月）插件，API 15。中键开关前进：按一下一直走，�
 https://raw.githubusercontent.com/wucan-wen/AutoMoveOn/main/pluginmaster.json
 ```
 
-刷新后安装「Auto move on」。（若之前用开发者模式装过，先把那份停用，同 InternalName 会冲突）
+刷新后安装「MiddleClick AutoRun」。（若之前用开发者模式装过，先把那份停用，同 InternalName 会冲突）
 
 ## 使用
 
