@@ -45,7 +45,30 @@ internal sealed class ConfigWindow : Window
         "中键开关（按一次开始，再按一次停止）",
     };
 
-    private static void DrawSettings(Configuration config)
+    /// <summary>开关状态显示：中键模式下显示开/关并可以直接点，状态跟着中键实时变化。</summary>
+    private void DrawSwitchState(Configuration config)
+    {
+        if (config.Mode != AutoRunMode.MiddleMouse)
+        {
+            ImGui.TextDisabled("当前模式：由游戏自己的自动前进键控制");
+            return;
+        }
+
+        var on = plugin.Guard.PlayerIntent;
+
+        ImGui.TextColored(
+            on ? new Vector4(0.45f, 0.87f, 0.55f, 1f) : new Vector4(0.68f, 0.68f, 0.68f, 1f),
+            on ? "保持前进：开" : "保持前进：关");
+
+        ImGui.SameLine();
+        if (ImGui.Button(on ? "停止" : "开始"))
+            plugin.Guard.Toggle("窗口");
+
+        ImGui.SameLine();
+        ImGui.TextDisabled("（与鼠标中键同一个开关）");
+    }
+
+    private void DrawSettings(Configuration config)
     {
         var changed = false;
 
@@ -59,6 +82,8 @@ internal sealed class ConfigWindow : Window
 
         if (ImGui.IsItemHovered())
             ImGui.SetTooltip("跟随游戏：用游戏自己的自动前进开关键，插件只负责补回被技能打断的；中键开关：插件自己把中键当开关，按一次一直保持前进，再按一次停止。");
+
+        DrawSwitchState(config);
 
         ImGui.SetNextItemWidth(220f);
         var grace = config.GraceMs;
