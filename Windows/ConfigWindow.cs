@@ -27,10 +27,6 @@ internal sealed class ConfigWindow : Window
 
         var config = Plugin.Config;
 
-        DrawGameKeySwitch(config);
-
-        ImGui.Separator();
-
         DrawSwitchState(config);
 
         ImGui.Separator();
@@ -41,51 +37,9 @@ internal sealed class ConfigWindow : Window
         ImGui.TextDisabled("中键 = 开关；WASD / 位移技能 / 走到目标附近会自动停止。");
     }
 
-    /// <summary>「游戏自己管自动前进」的一键开关。</summary>
-    private void DrawGameKeySwitch(Configuration config)
-    {
-        var usesGameKey = config.GameHandlesAutoRun;
-        if (ImGui.Button(usesGameKey ? "改回插件接管（还原游戏键位）" : "把游戏键位改成：自动前进 = 鼠标中键"))
-        {
-            if (!usesGameKey)
-            {
-                // 先记下原键位，再把自动前进绑到鼠标中键，之后插件完全停手
-                if (KeybindBridge.TryReadAutoRun(out var slot0, out var slot1))
-                {
-                    config.OriginalAutoRunSlot0 = slot0;
-                    config.OriginalAutoRunSlot1 = slot1;
-                    config.OriginalAutoRunSaved = true;
-                }
-
-                config.GameHandlesAutoRun = KeybindBridge.TrySetAutoRunToMiddleMouse();
-            }
-            else
-            {
-                if (config.OriginalAutoRunSaved)
-                    KeybindBridge.TryRestoreAutoRun(config.OriginalAutoRunSlot0, config.OriginalAutoRunSlot1);
-
-                config.GameHandlesAutoRun = false;
-            }
-
-            config.Save();
-        }
-
-        if (ImGui.IsItemHovered())
-            ImGui.SetTooltip("点了之后，需要你自己在游戏「键位设置」里把「自动前进」绑成鼠标中键； 插件从此不注入任何按键、不检测任何输入，相当于完全不工作。");
-
-        if (usesGameKey)
-            ImGui.TextDisabled("当前：由游戏键位控制自动前进，插件不干预任何功能");
-    }
-
     /// <summary>开关状态显示，跟着中键实时变化，也可以直接在这里点。</summary>
     private void DrawSwitchState(Configuration config)
     {
-        if (config.GameHandlesAutoRun)
-        {
-            ImGui.TextDisabled("插件已在待命状态（不检测中键、不注入按键）");
-            return;
-        }
-
         var on = plugin.Guard.PlayerIntent;
 
         ImGui.TextColored(
