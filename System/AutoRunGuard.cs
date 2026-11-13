@@ -222,12 +222,17 @@ internal sealed unsafe class AutoRunGuard
         WriteForward(true);
     }
 
-    /// <summary>把自动前进设为指定值：优先直接写标志，失败回退聊天命令。</summary>
+    /// <summary>
+    ///     把自动前进设为指定值。
+    ///     开：优先直接写标志（快，技能打断能当帧续上），失败回退聊天命令。
+    ///     关：一律用游戏自己的命令 —— 直接写标志这个地址会被游戏当帧刷回，
+    ///     只有命令能真正把自动前进停掉。
+    /// </summary>
     private void WriteForward(bool value)
     {
         try
         {
-            if (AutoRunFlag.TrySet(value))
+            if (value && AutoRunFlag.TrySet(true))
                 return;
 
             SendGameCommand(value ? "/automove on" : "/automove off");
