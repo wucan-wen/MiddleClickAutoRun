@@ -14,6 +14,9 @@ https://raw.githubusercontent.com/wucan-wen/AutoMoveOn/main/pluginmaster.json
 
 刷新后安装「MiddleClick AutoRun」。（若之前用开发者模式装过，先把那份停用，同 InternalName 会冲突）
 
+> **键位提示**：如果你的游戏「键位设置」里已经把「自动前进」绑成了鼠标中键，请先改成别的键或清空。
+> 插件本身就是用中键做开关，两边同时生效会互相抢状态，表现为按一下停一下。
+
 ## 使用
 
 | 动作 | 行为 |
