@@ -1,4 +1,5 @@
 using System;
+using System.Runtime.InteropServices;
 using Dalamud.Game.ClientState.Conditions;
 using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Client.Game.Control;
@@ -15,6 +16,8 @@ namespace AutoRunKeeper.System;
 /// </summary>
 internal sealed unsafe class AutoRunGuard
 {
+    private const int VkRightMouse = 0x02;
+
     private bool lastAutoRun;
     private bool intentOn;
     private bool wasBusy;
@@ -120,8 +123,10 @@ internal sealed unsafe class AutoRunGuard
         }
 
         // 移动键（WASD / 方向键）按下瞬间 = 想自己走
+        // 仅在自动前进已经关闭时判定：游戏自己也会因移动键关掉自动前进，此时才算用户接管；
+        // 若自动前进仍然开着，说明这串移动输入是自动前进本身产生的，不能据此取消。
         var moving = ReadMoveInput();
-        if (moving && !lastMoving && intentOn)
+        if (moving && !lastMoving && intentOn && !GameAutoRun)
             CancelByUser("手动移动输入（WASD）");
         lastMoving = moving;
 
@@ -327,19 +332,21 @@ internal sealed unsafe class AutoRunGuard
         lastTargetDist = -1f;
     }
 
-    /// <summary>右键是否按住（游戏里右键拖动 = 调整视角/面向）。</summary>
-    private static unsafe bool IsRightMouseDown()
+    /// <summary>右键是否按住（游戏里右键拖动 = 调整视角/面向）。读物理键状态，比游戏结构体稳。</summary>
+    private static bool IsRightMouseDown()
     {
         try
         {
-            var inputManager = InputManager.Instance();
-            return inputManager != null && inputManager->HeldMouseButtons.HasFlag(InputManager.MouseButtonHoldState.Right);
+            return (GetAsyncKeyState(VkRightMouse) & 0x8000) != 0;
         }
         catch
         {
             return false;
         }
     }
+
+    [DllImport("user32.dll")]
+    private static extern short GetAsyncKeyState(int vKey);
 
     private static bool ReadAutoRun()
     {
