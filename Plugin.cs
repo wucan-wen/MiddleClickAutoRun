@@ -18,6 +18,7 @@ public sealed class Plugin : IDalamudPlugin
         Config = pluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
 
         PluginFont.Initialize();
+        AutoRunFlag.Initialize();
 
         Guard = new AutoRunGuard();
         Window = new ConfigWindow(this);

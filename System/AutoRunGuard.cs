@@ -154,11 +154,8 @@ internal sealed unsafe class AutoRunGuard
         // 右键按住 = 正在手动调整面向/视角，此时不干预，避免自动前进被反复重置而卡顿
         var rightMouseDown = IsRightMouseDown();
 
-        // 刚补回成功的一小段时间内不再发命令，避免来回拉扯
-        var justRecovered = now - lastSuccessAt <= Plugin.Config.SuccessCooldownMs;
-
         // 技能上下文内持续补回
-        if (intentOn && !GameAutoRun && inSkillWindow && !rightMouseDown && !justRecovered &&
+        if (intentOn && !GameAutoRun && inSkillWindow && !rightMouseDown &&
             now - lastRecoverAt >= Plugin.Config.RecoverIntervalMs)
         {
             Recover(now, busy ? "技能动作中补回" : "技能结束后补回");
@@ -217,11 +214,12 @@ internal sealed unsafe class AutoRunGuard
 
         try
         {
-            SendGameCommand("/automove off");
+            if (!AutoRunFlag.TrySet(false))
+                SendGameCommand("/automove off");
         }
         catch (Exception ex)
         {
-            DalamudApi.Log.Error(ex, "[Auto move on] 发送 /automove off 失败");
+            DalamudApi.Log.Error(ex, "[Auto move on] 取消自动前进失败");
         }
     }
 
@@ -265,12 +263,18 @@ internal sealed unsafe class AutoRunGuard
 
         try
         {
+            if (AutoRunFlag.TrySet(true))
+            {
+                DalamudApi.Log.Debug($"[Auto move on] 直接补回自动前进（{reason}，累计 {recoverCount}）");
+                return;
+            }
+
             SendGameCommand("/automove on");
-            DalamudApi.Log.Debug($"[Auto move on] 补回自动前进（{reason}，累计 {recoverCount}）");
+            DalamudApi.Log.Debug($"[Auto move on] 命令补回自动前进（{reason}，累计 {recoverCount}）");
         }
         catch (Exception ex)
         {
-            DalamudApi.Log.Error(ex, "[Auto move on] 发送 /automove on 失败");
+            DalamudApi.Log.Error(ex, "[Auto move on] 补回自动前进失败");
         }
     }
 
