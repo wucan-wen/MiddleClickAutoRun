@@ -9,7 +9,7 @@ Dalamud（卫月）插件，API 15。开着自动前进放技能时，游戏会�
 1. `/xlplugins` → 设置 → 自定义插件仓库（Custom Plugin Repositories）→ 添加：
 
 ```
-https://cdn.jsdelivr.net/gh/wucan-wen/Autowalk-Distro@main/pluginmaster.json
+https://raw.githubusercontent.com/wucan-wen/Autowalk/main/pluginmaster.json
 ```
 
 2. 刷新仓库 → 在插件列表里找到「Autowalk」→ 安装并启用

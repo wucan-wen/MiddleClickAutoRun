@@ -17,11 +17,11 @@
     "CategoryTags": [
       "Utility"
     ],
-    "RepoUrl": "https://github.com/wucan-wen/Autowalk-Distro",
+    "RepoUrl": "https://github.com/wucan-wen/Autowalk",
     "AcceptsFeedback": true,
-    "DownloadLinkInstall": "https://cdn.jsdelivr.net/gh/wucan-wen/Autowalk-Distro@main/dist/Autowalk-1.0.0.0.zip",
-    "DownloadLinkUpdate": "https://cdn.jsdelivr.net/gh/wucan-wen/Autowalk-Distro@main/dist/Autowalk-1.0.0.0.zip",
-    "DownloadLinkTesting": "https://cdn.jsdelivr.net/gh/wucan-wen/Autowalk-Distro@main/dist/Autowalk-1.0.0.0.zip",
+    "DownloadLinkInstall": "https://raw.githubusercontent.com/wucan-wen/Autowalk/main/dist/Autowalk-1.0.0.0.zip",
+    "DownloadLinkUpdate": "https://raw.githubusercontent.com/wucan-wen/Autowalk/main/dist/Autowalk-1.0.0.0.zip",
+    "DownloadLinkTesting": "https://raw.githubusercontent.com/wucan-wen/Autowalk/main/dist/Autowalk-1.0.0.0.zip",
     "LastUpdate": 1794552151,
     "DownloadCount": 0,
     "IsHide": false,
