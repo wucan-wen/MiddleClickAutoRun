@@ -17,6 +17,11 @@ internal sealed unsafe class AutoRunGuard
     private const int VkMiddleMouse = 0x04;
     private const int VkRightMouse = 0x02;
 
+    private const uint MouseEventLeftDown = 0x0002;
+    private const uint MouseEventLeftUp = 0x0004;
+    private const uint MouseEventRightDown = 0x0008;
+    private const uint MouseEventRightUp = 0x0010;
+
     private bool intentOn;
     private bool wasBusy;
     private bool lastMiddleDown;
@@ -25,6 +30,7 @@ internal sealed unsafe class AutoRunGuard
     private long lastBusyAt = long.MinValue / 2;
     private long lastRecoverAt = long.MinValue / 2;
     private long ignoreGameStateUntil;
+    private long lastMouseHoldAt = long.MinValue / 2;
     private int recoverCount;
     private float lastTargetDist = -1f;
     private bool targetStopArmed = true;
@@ -140,7 +146,10 @@ internal sealed unsafe class AutoRunGuard
         }
     }
 
-    /// <summary>中键开关模式：中键切换，开着就一直维持前进。</summary>
+    /// <summary>
+    ///     中键开关模式：中键开 / 中键关，开着就一直维持「左键 + 右键同时按住」这个原生输入状态。
+    ///     不碰游戏的自动前进，也不做任何补回 —— 原生这个状态本来就不会被技能打断。
+    /// </summary>
     private void UpdateMiddleMouseMode(long now, bool busy)
     {
         var middleDown = IsMouseDown(VkMiddleMouse);
@@ -150,18 +159,80 @@ internal sealed unsafe class AutoRunGuard
             ignoreGameStateUntil = now + 800;
             LastReason = intentOn ? "中键开启" : "中键取消";
 
-            WriteForward(intentOn);
-            DalamudApi.Log.Information($"[Auto move on] 中键{(intentOn ? "开启" : "取消")}保持前进");
+            if (intentOn)
+                HoldMouseForward();
+            else
+                ReleaseMouseForward();
+
+            DalamudApi.Log.Information($"[Auto move on] 中键{(intentOn ? "开启" : "取消")}按住前进键");
         }
 
         lastMiddleDown = middleDown;
 
-        // 你自己用游戏的开关键开起来也算开启（刚按过中键的静默窗口内不采信）
-        if (!intentOn && GameAutoRun && now > ignoreGameStateUntil)
-            intentOn = true;
+        if (intentOn)
+            EnsureMouseForwardHeld(now);
+    }
 
-        if (intentOn && !GameAutoRun)
-            Recover(now, busy ? "技能打断后保持" : "补回前进");
+    /// <summary>每帧确认左右键仍处于按住状态，被系统/游戏丢掉时补发一次。</summary>
+    private void EnsureMouseForwardHeld(long now)
+    {
+        if (now - lastMouseHoldAt < 250)
+            return;
+
+        lastMouseHoldAt = now;
+
+        if (!IsMouseForwardHeld())
+        {
+            HoldMouseForward();
+            DalamudApi.Log.Debug("[Auto move on] 左右键按住状态丢失，已补发");
+        }
+    }
+
+    /// <summary>游戏是否认为左右键同时按住。</summary>
+    private static unsafe bool IsMouseForwardHeld()
+    {
+        try
+        {
+            var inputManager = InputManager.Instance();
+            if (inputManager == null)
+                return false;
+
+            var held = inputManager->HeldMouseButtons;
+            return held.HasFlag(InputManager.MouseButtonHoldState.Left)
+                   && held.HasFlag(InputManager.MouseButtonHoldState.Right);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>发送鼠标左右键按下（模拟原生「左右键同按 = 前进」）。</summary>
+    private static void HoldMouseForward()
+    {
+        try
+        {
+            mouse_event(MouseEventLeftDown, 0, 0, 0, IntPtr.Zero);
+            mouse_event(MouseEventRightDown, 0, 0, 0, IntPtr.Zero);
+        }
+        catch (Exception ex)
+        {
+            DalamudApi.Log.Error(ex, "[Auto move on] 发送左右键按下失败");
+        }
+    }
+
+    /// <summary>松开左右键。</summary>
+    private void ReleaseMouseForward()
+    {
+        try
+        {
+            mouse_event(MouseEventLeftUp, 0, 0, 0, IntPtr.Zero);
+            mouse_event(MouseEventRightUp, 0, 0, 0, IntPtr.Zero);
+        }
+        catch (Exception ex)
+        {
+            DalamudApi.Log.Error(ex, "[Auto move on] 发送左右键松开失败");
+        }
     }
 
     /// <summary>跟随游戏模式：意图跟着游戏的自动前进状态走，只在技能上下文内补回。</summary>
@@ -353,8 +424,21 @@ internal sealed unsafe class AutoRunGuard
     [DllImport("user32.dll")]
     private static extern short GetAsyncKeyState(int vKey);
 
+    [DllImport("user32.dll")]
+    private static extern void mouse_event(uint flags, uint dx, uint dy, uint data, nint extraInfo);
+
+    /// <summary>插件卸载时把按住的键松开，别留给游戏。</summary>
+    internal void Shutdown()
+    {
+        if (intentOn)
+            ReleaseMouseForward();
+        intentOn = false;
+    }
+
     private void ResetInstance()
     {
+        if (Plugin.Config.Mode == AutoRunMode.MiddleMouse && intentOn)
+            ReleaseMouseForward();
         intentOn = false;
         wasBusy = false;
         lastMoving = false;

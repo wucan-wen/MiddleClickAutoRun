@@ -46,6 +46,7 @@ public sealed class Plugin : IDalamudPlugin
     public void Dispose()
     {
         DalamudApi.Framework.Update -= OnUpdate;
+        Guard.Shutdown();
         DalamudApi.UiBuilder.Draw -= windowSystem.Draw;
 
         DalamudApi.UiBuilder.OpenConfigUi -= OnOpenConfigUi;
