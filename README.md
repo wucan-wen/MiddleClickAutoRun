@@ -9,7 +9,7 @@ Dalamud（卫月）插件，API 15。中键开关前进：按一下一直走，�
 `/xlplugins` → 设置 → 自定义插件仓库 → 添加：
 
 ```
-https://raw.githubusercontent.com/wucan-wen/AutoMoveOn/main/pluginmaster.json
+https://raw.githubusercontent.com/wucan-wen/MiddleClickAutoRun/main/pluginmaster.json
 ```
 
 刷新后安装「MiddleClick AutoRun」。（若之前用开发者模式装过，先把那份停用，同 InternalName 会冲突）
