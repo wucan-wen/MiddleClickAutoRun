@@ -48,6 +48,18 @@ internal sealed unsafe class AutoRunGuard
 
     internal void Update()
     {
+        // 用户已经在游戏键位里把自动前进绑成鼠标中键 → 插件不参与任何逻辑
+        if (Plugin.Config.GameHandlesAutoRun)
+        {
+            if (intentOn)
+            {
+                intentOn = false;
+                ReleaseForward();
+            }
+
+            return;
+        }
+
         if (!DalamudApi.ClientState.IsLoggedIn || DalamudApi.ObjectTable.LocalPlayer is null)
         {
             ResetInstance();

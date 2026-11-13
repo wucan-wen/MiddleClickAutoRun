@@ -27,6 +27,10 @@ internal sealed class ConfigWindow : Window
 
         var config = Plugin.Config;
 
+        DrawGameKeySwitch(config);
+
+        ImGui.Separator();
+
         DrawSwitchState(config);
 
         ImGui.Separator();
@@ -37,9 +41,32 @@ internal sealed class ConfigWindow : Window
         ImGui.TextDisabled("中键 = 开关；WASD / 位移技能 / 走到目标附近会自动停止。");
     }
 
+    /// <summary>「游戏自己管自动前进」的一键开关。</summary>
+    private void DrawGameKeySwitch(Configuration config)
+    {
+        var usesGameKey = config.GameHandlesAutoRun;
+        if (ImGui.Button(usesGameKey ? "已用游戏键位：点此改回插件接管" : "改用游戏键位（中键 = 自动前进）"))
+        {
+            config.GameHandlesAutoRun = !usesGameKey;
+            config.Save();
+        }
+
+        if (ImGui.IsItemHovered())
+            ImGui.SetTooltip("点了之后，需要你自己在游戏「键位设置」里把「自动前进」绑成鼠标中键； 插件从此不注入任何按键、不检测任何输入，相当于完全不工作。");
+
+        if (usesGameKey)
+            ImGui.TextDisabled("当前：由游戏键位控制自动前进，插件不干预任何功能");
+    }
+
     /// <summary>开关状态显示，跟着中键实时变化，也可以直接在这里点。</summary>
     private void DrawSwitchState(Configuration config)
     {
+        if (config.GameHandlesAutoRun)
+        {
+            ImGui.TextDisabled("插件已在待命状态（不检测中键、不注入按键）");
+            return;
+        }
+
         var on = plugin.Guard.PlayerIntent;
 
         ImGui.TextColored(

@@ -3,7 +3,7 @@
     "Author": "wucan-wen",
     "Name": "Auto move on",
     "InternalName": "AutoRunKeeper",
-    "AssemblyVersion": "1.2.0.1",
+    "AssemblyVersion": "1.2.1.0",
     "Description": "按鼠标中键开始一直前进，再按一次停止。前进方式就是按住游戏的鼠标左右键（原生前进），\n用技能不会打断它，所以不需要任何「补回 / 重新开启」。\n\n功能：\n- 鼠标中键 = 开关；设置窗口里也能直接点开始 / 停止，状态实时同步\n- 按 W/A/S/D、使用位移技能、走到当前目标附近，都会自动停止前进\n- 可选「继续原有面向」：技能动作期间压住朝向，不会被技能带着拐弯\n- 可调：目标停止开关与距离、位移技能判定速度\n- 没有任何聊天命令，也不往聊天框输出\n\n设置窗口从插件列表里本插件的设置按钮（齿轮）打开。",
     "Punchline": "中键开关前进：按一下一直走，再按一下停，放技能不打断。",
     "ApplicableVersion": "any",
@@ -19,13 +19,13 @@
     ],
     "RepoUrl": "https://github.com/wucan-wen/AutoMoveOn",
     "AcceptsFeedback": true,
-    "DownloadLinkInstall": "https://raw.githubusercontent.com/wucan-wen/AutoMoveOn/main/dist/AutoMoveOn-1.2.0.1.zip",
-    "DownloadLinkUpdate": "https://raw.githubusercontent.com/wucan-wen/AutoMoveOn/main/dist/AutoMoveOn-1.2.0.1.zip",
-    "DownloadLinkTesting": "https://raw.githubusercontent.com/wucan-wen/AutoMoveOn/main/dist/AutoMoveOn-1.2.0.1.zip",
-    "LastUpdate": 1794555029,
+    "DownloadLinkInstall": "https://raw.githubusercontent.com/wucan-wen/AutoMoveOn/main/dist/AutoMoveOn-1.2.1.0.zip",
+    "DownloadLinkUpdate": "https://raw.githubusercontent.com/wucan-wen/AutoMoveOn/main/dist/AutoMoveOn-1.2.1.0.zip",
+    "DownloadLinkTesting": "https://raw.githubusercontent.com/wucan-wen/AutoMoveOn/main/dist/AutoMoveOn-1.2.1.0.zip",
+    "LastUpdate": 1794555201,
     "DownloadCount": 0,
     "IsHide": false,
     "IsTestingExclusive": false,
-    "Changelog": "简介更新：中键开关前进"
+    "Changelog": "新增一键改回游戏键位：交给游戏自己处理时插件完全不工作"
   }
 ]

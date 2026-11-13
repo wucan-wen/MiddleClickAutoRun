@@ -7,6 +7,9 @@ public sealed class Configuration : IPluginConfiguration
 {
     public int Version { get; set; } = 1;
 
+    /// <summary>游戏里已把「自动前进」绑到鼠标中键：插件完全停手，不触发任何功能。</summary>
+    public bool GameHandlesAutoRun { get; set; }
+
     /// <summary>走到当前目标附近时自动停止前进。</summary>
     public bool StopNearTarget { get; set; } = true;
 
