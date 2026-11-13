@@ -8,20 +8,19 @@ namespace AutoRunKeeper.System;
 
 /// <summary>
 ///     自动前进守护核心。
-///     不绑定任何键位（每个人的自动前进键都可能不同），只看两件事：
-///     1. 游戏状态：是否正在自动前进、是否正在放技能（施法 / 动画锁）。
-///     2. 技能上下文：游戏在放技能时会取消自动前进，所以只在「技能动作中」以及「动作刚结束的
-///        一小段时间内」补回；离开这个上下文之后再被关掉，就判定是用户自己关的，立即停止守护。
-///     用户主动接管还有两条明确信号：按下移动键（WASD），或走到当前目标附近。
+///     开关就是鼠标中键：按一次开始「一直保持前进」，再按一次取消。
+///     保持的方式是直接读写游戏的自动前进标志（<see cref="AutoRunFlag"/>），不走聊天命令，
+///     所以技能一打断就能当帧补回来，不会一顿一顿。
+///     另外这些情况视为「我要自己控制」，会立刻取消：按 WASD、走到目标附近、用位移技能。
 /// </summary>
 internal sealed unsafe class AutoRunGuard
 {
     private const int VkLeftMouse = 0x01;
-    private const int VkRightMouse = 0x02;
+    private const int VkMiddleMouse = 0x04;
 
-    private bool lastAutoRun;
     private bool intentOn;
     private bool wasBusy;
+    private bool lastMiddleDown;
     private bool lastMoving;
     private long lastBusyAt = long.MinValue / 2;
     private long lastRecoverAt = long.MinValue / 2;
@@ -33,9 +32,8 @@ internal sealed unsafe class AutoRunGuard
     private long lastPosAt;
     private global::System.Numerics.Vector3 lastPos;
     private float peakSpeed;
-    private long lastSuccessAt = long.MinValue / 2;
 
-    /// <summary>用户意图：他想不想自动前进。</summary>
+    /// <summary>用户意图：是否要保持前进（中键开的状态）。</summary>
     internal bool PlayerIntent => intentOn;
 
     /// <summary>游戏当前的真实自动前进状态。</summary>
@@ -73,7 +71,7 @@ internal sealed unsafe class AutoRunGuard
         if (!busy)
             idleFacing = rotation;
         if (busy && !wasBusy)
-            facingBefore = idleFacing; // 技能开始前的朝向
+            facingBefore = idleFacing;
 
         if (busy)
             lastBusyAt = now;
@@ -84,13 +82,11 @@ internal sealed unsafe class AutoRunGuard
         if (skillJustEnded)
         {
             if (peakSpeed > 8f)
-                DalamudApi.Log.Information($"[Auto move on] 本次技能动作峰值速度 {peakSpeed:0} 米/秒");
+                DalamudApi.Log.Debug($"[Auto move on] 本次技能动作峰值速度 {peakSpeed:0} 米/秒");
             peakSpeed = 0f;
         }
 
-        // 可选的「继续原有面向」：
-        // 技能动作期间每帧把面向压回技能前的方向（否则会被技能转过去，自动前进就先往回走一小段），
-        // 动作结束再确认一次。
+        // 「继续原有面向」：技能动作期间压住朝向，避免被技能转过去后先往回走一小段
         if (Plugin.Config.KeepFacing && intentOn)
         {
             var drift = MathF.Abs(WrapAngle(rotation - facingBefore));
@@ -98,8 +94,37 @@ internal sealed unsafe class AutoRunGuard
                 RestoreFacing(facingBefore);
         }
 
+        // ---- 中键开关：按一次保持前进，再按一次取消 ----
+        var middleDown = IsMouseDown(VkMiddleMouse);
+        if (middleDown && !lastMiddleDown)
+        {
+            intentOn = !intentOn;
+            LastReason = intentOn ? "中键开启" : "中键取消";
+
+            if (intentOn)
+                WriteForward(true);
+            else
+                WriteForward(false);
+
+            DalamudApi.Log.Information($"[Auto move on] 中键{(intentOn ? "开启" : "取消")}保持前进");
+        }
+
+        lastMiddleDown = middleDown;
+
+        // 兼容：你自己用游戏自己的自动前进键开起来，也算开启
+        if (!intentOn && GameAutoRun)
+            intentOn = true;
+
+        // ---- 以下都是「我要自己控制」的信号 ----
+        var moving = ReadMoveInput();
+        if (moving && !lastMoving && intentOn && !GameAutoRun)
+            CancelByUser("手动移动输入（WASD）");
+        lastMoving = moving;
+
+        if (Plugin.Config.StopNearTarget && intentOn)
+            CheckStopNearTarget();
+
         // 位移技能：技能动作中的瞬时移动速度明显超过跑步速度
-        // 用 40ms 采样窗口算速度，避免帧率抖动把速度放大好几倍
         var position = DalamudApi.ObjectTable.LocalPlayer.Position;
         var speed = 0f;
         if (lastPosAt == 0)
@@ -123,56 +148,19 @@ internal sealed unsafe class AutoRunGuard
             CancelByUser($"位移技能（{speed:0} 米/秒）");
         }
 
-        // 移动键（WASD / 方向键）按下瞬间 = 想自己走
-        // 仅在自动前进已经关闭时判定：游戏自己也会因移动键关掉自动前进，此时才算用户接管；
-        // 若自动前进仍然开着，说明这串移动输入是自动前进本身产生的，不能据此取消。
-        var moving = ReadMoveInput();
-        if (moving && !lastMoving && intentOn && !GameAutoRun)
-            CancelByUser("手动移动输入（WASD）");
-        lastMoving = moving;
+        // ---- 保持前进 ----
+        if (intentOn && !GameAutoRun)
+            Recover(now, busy ? "技能打断后保持" : "补回前进");
 
-        // 走到当前目标附近（默认 2 米，水平距离）→ 停；只有「正在靠近」才停，远离时不动
-        if (Plugin.Config.StopNearTarget && intentOn)
-            CheckStopNearTarget();
-
-        // 玩家开启自动前进 → 记录意图，开始守护
-        if (GameAutoRun && !lastAutoRun)
+        if (GameAutoRun != lastAutoRunLogged)
         {
-            intentOn = true;
-            if (now - lastRecoverAt < 1200)
-                lastSuccessAt = now; // 刚补回就恢复成功，记一下冷却
-        }
-
-        var inSkillWindow = busy || now - lastBusyAt <= Plugin.Config.GraceMs;
-
-        // 被关掉：在技能上下文内是游戏干的（继续守），之外是用户干的（不再管）
-        if (!GameAutoRun && lastAutoRun && !inSkillWindow)
-        {
-            intentOn = false;
-            LastReason = "用户手动关闭（不干预）";
-        }
-
-        // 右键按住 = 正在手动调整面向/视角，此时不干预，避免自动前进被反复重置而卡顿
-        var rightMouseDown = IsMouseDown(VkRightMouse);
-        var bothMouseDown = rightMouseDown && IsMouseDown(VkLeftMouse);
-
-        // 左右键同时按住 = 游戏里的手动前进，等同于用户要自己走
-        if (bothMouseDown && intentOn)
-            CancelByUser("左右键同时按住（手动前进）");
-
-        // 技能上下文内持续补回
-        if (intentOn && !GameAutoRun && inSkillWindow && !rightMouseDown &&
-            now - lastRecoverAt >= Plugin.Config.RecoverIntervalMs)
-        {
-            Recover(now, busy ? "技能动作中补回" : "技能结束后补回");
-        }
-
-        if (GameAutoRun != lastAutoRun)
             DalamudApi.Log.Debug(
-                $"[Auto move on] 自动前进变化 {lastAutoRun} -> {GameAutoRun}（施法={IsCasting} 动画锁={AnimationLock:0.00} 意图={intentOn}）");
-
-        lastAutoRun = ReadAutoRun();
+                $"[Auto move on] 自动前进变化 {lastAutoRunLogged} -> {GameAutoRun}（施法={IsCasting} 动画锁={AnimationLock:0.00} 意图={intentOn}）");
+            lastAutoRunLogged = GameAutoRun;
+        }
     }
+
+    private bool lastAutoRunLogged;
 
     /// <summary>统计清零。</summary>
     internal void ResetStats()
@@ -195,7 +183,6 @@ internal sealed unsafe class AutoRunGuard
         var delta = target.Position - DalamudApi.ObjectTable.LocalPlayer.Position;
         var flat = new global::System.Numerics.Vector2(delta.X, delta.Z).Length();
 
-        // 离开到阈值外 1.5 米以上才重新武装，避免边界抖动
         if (flat > Plugin.Config.TargetStopDistance + 1.5f)
             targetStopArmed = true;
 
@@ -210,77 +197,40 @@ internal sealed unsafe class AutoRunGuard
         lastTargetDist = flat;
     }
 
-    /// <summary>用户接管：立即取消自动前进并停止守护。</summary>
+    /// <summary>用户接管：立即取消并停止守护。</summary>
     private void CancelByUser(string reason)
     {
         intentOn = false;
         LastReason = $"用户接管：{reason}";
 
         DalamudApi.Log.Information($"[Auto move on] 用户接管（{reason}），取消自动前进");
-
-        try
-        {
-            if (!AutoRunFlag.TrySet(false))
-                SendGameCommand("/automove off");
-        }
-        catch (Exception ex)
-        {
-            DalamudApi.Log.Error(ex, "[Auto move on] 取消自动前进失败");
-        }
-    }
-
-    /// <summary>把角色朝向转回指定角度。</summary>
-    private static unsafe void RestoreFacing(float rotation)
-    {
-        try
-        {
-            var player = DalamudApi.ObjectTable.LocalPlayer;
-            if (player == null)
-                return;
-
-            var gameObject = (global::FFXIVClientStructs.FFXIV.Client.Game.Object.GameObject*)player.Address;
-            if (gameObject == null)
-                return;
-
-            gameObject->SetRotation(rotation);
-        }
-        catch (Exception ex)
-        {
-            DalamudApi.Log.Error(ex, "[Auto move on] 恢复朝向失败");
-        }
-    }
-
-    /// <summary>把角度差规整到 -π..π，方便比较。</summary>
-    private static float WrapAngle(float angle)
-    {
-        const float tau = MathF.PI * 2f;
-        while (angle > MathF.PI)
-            angle -= tau;
-        while (angle < -MathF.PI)
-            angle += tau;
-        return angle;
+        WriteForward(false);
     }
 
     private void Recover(long now, string reason)
     {
+        if (now - lastRecoverAt < Plugin.Config.RecoverIntervalMs)
+            return;
+
         lastRecoverAt = now;
         recoverCount++;
         LastReason = reason;
+        WriteForward(true);
+    }
 
+    /// <summary>把自动前进设为指定值：优先直接写标志，失败回退聊天命令。</summary>
+    private void WriteForward(bool value)
+    {
         try
         {
-            if (AutoRunFlag.TrySet(true))
-            {
-                DalamudApi.Log.Debug($"[Auto move on] 直接补回自动前进（{reason}，累计 {recoverCount}）");
+            if (AutoRunFlag.TrySet(value))
                 return;
-            }
 
-            SendGameCommand("/automove on");
-            DalamudApi.Log.Debug($"[Auto move on] 命令补回自动前进（{reason}，累计 {recoverCount}）");
+            SendGameCommand(value ? "/automove on" : "/automove off");
         }
         catch (Exception ex)
         {
-            DalamudApi.Log.Error(ex, "[Auto move on] 补回自动前进失败");
+            DalamudApi.Log.Error(ex, $"[Auto move on] 设置自动前进（{value}）失败");
         }
     }
 
@@ -292,10 +242,7 @@ internal sealed unsafe class AutoRunGuard
     {
         var uiModule = global::FFXIVClientStructs.FFXIV.Client.UI.UIModule.Instance();
         if (uiModule == null)
-        {
-            DalamudApi.Log.Warning("[Auto move on] UIModule 不可用，无法发送命令");
             return;
-        }
 
         var utf8 = new global::FFXIVClientStructs.FFXIV.Client.System.String.Utf8String();
         utf8.Ctor();
@@ -310,7 +257,7 @@ internal sealed unsafe class AutoRunGuard
         }
     }
 
-    /// <summary>读游戏的移动输入（键位映射后的逻辑输入：前进/后退/左右/平移）。</summary>
+    /// <summary>读游戏的移动输入（前进/后退/左右/平移）。</summary>
     private static unsafe bool ReadMoveInput()
     {
         try
@@ -333,16 +280,35 @@ internal sealed unsafe class AutoRunGuard
         }
     }
 
-    private void ResetInstance()
+    /// <summary>把角色朝向转回指定角度。</summary>
+    private static unsafe void RestoreFacing(float rotation)
     {
-        lastAutoRun = false;
-        intentOn = false;
-        wasBusy = false;
-        lastMoving = false;
-        lastTargetDist = -1f;
+        try
+        {
+            var player = DalamudApi.ObjectTable.LocalPlayer;
+            if (player == null)
+                return;
+
+            var gameObject = (global::FFXIVClientStructs.FFXIV.Client.Game.Object.GameObject*)player.Address;
+            gameObject->SetRotation(rotation);
+        }
+        catch (Exception ex)
+        {
+            DalamudApi.Log.Error(ex, "[Auto move on] 恢复朝向失败");
+        }
     }
 
-    /// <summary>读物理鼠标键状态（比游戏结构体稳）。</summary>
+    private static float WrapAngle(float angle)
+    {
+        const float tau = MathF.PI * 2f;
+        while (angle > MathF.PI)
+            angle -= tau;
+        while (angle < -MathF.PI)
+            angle += tau;
+        return angle;
+    }
+
+    /// <summary>读物理鼠标键状态。</summary>
     private static bool IsMouseDown(int virtualKey)
     {
         try
@@ -357,6 +323,15 @@ internal sealed unsafe class AutoRunGuard
 
     [DllImport("user32.dll")]
     private static extern short GetAsyncKeyState(int vKey);
+
+    private void ResetInstance()
+    {
+        intentOn = false;
+        wasBusy = false;
+        lastMoving = false;
+        lastMiddleDown = false;
+        lastTargetDist = -1f;
+    }
 
     private static bool ReadAutoRun()
     {
