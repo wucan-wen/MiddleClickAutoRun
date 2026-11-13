@@ -1,4 +1,4 @@
-name: Autowalk
+name: Auto move on
 author: 自用
 punchline: 放技能打断自动前进后自动补回，走位不被打断。
 description: |-

@@ -9,7 +9,7 @@ namespace AutoRunKeeper;
 
 public sealed class Plugin : IDalamudPlugin
 {
-    private readonly WindowSystem windowSystem = new("Autowalk");
+    private readonly WindowSystem windowSystem = new("Auto move on");
 
     public Plugin(IDalamudPluginInterface pluginInterface)
     {
@@ -31,10 +31,10 @@ public sealed class Plugin : IDalamudPlugin
         DalamudApi.Framework.Update += OnUpdate;
         DalamudApi.UiBuilder.Draw += windowSystem.Draw;
 
-        DalamudApi.Log.Information("[Autowalk] 已加载");
+        DalamudApi.Log.Information("[Auto move on] 已加载");
     }
 
-    public string Name => "Autowalk";
+    public string Name => "Auto move on";
 
     internal static Configuration Config { get; private set; } = null!;
 
@@ -53,7 +53,7 @@ public sealed class Plugin : IDalamudPlugin
         windowSystem.RemoveAllWindows();
         PluginFont.Dispose();
 
-        DalamudApi.Log.Information("[Autowalk] 已卸载");
+        DalamudApi.Log.Information("[Auto move on] 已卸载");
     }
 
     private void OnOpenConfigUi() => Window.IsOpen = true;
@@ -66,7 +66,7 @@ public sealed class Plugin : IDalamudPlugin
         }
         catch (Exception ex)
         {
-            DalamudApi.Log.Error(ex, "[Autowalk] 每帧逻辑异常");
+            DalamudApi.Log.Error(ex, "[Auto move on] 每帧逻辑异常");
         }
     }
 }

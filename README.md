@@ -1,4 +1,4 @@
-# Autowalk
+# Auto move on
 
 Dalamud（卫月）插件，API 15。开着自动前进放技能时，游戏会取消自动前进；这个插件把被技能打断的自动前进自动补回，走位不被打断。
 
@@ -9,10 +9,10 @@ Dalamud（卫月）插件，API 15。开着自动前进放技能时，游戏会�
 1. `/xlplugins` → 设置 → 自定义插件仓库（Custom Plugin Repositories）→ 添加：
 
 ```
-https://raw.githubusercontent.com/wucan-wen/Autowalk/main/pluginmaster.json
+https://raw.githubusercontent.com/wucan-wen/AutoMoveOn/main/pluginmaster.json
 ```
 
-2. 刷新仓库 → 在插件列表里找到「Autowalk」→ 安装并启用
+2. 刷新仓库 → 在插件列表里找到「Auto move on」→ 安装并启用
 3. 如果之前用开发者模式（Dev Tools）装过同一个插件，**先停用或移除那份**，同一个 InternalName 两份会冲突拒载
 
 ## 安装（开发者模式）

@@ -12,7 +12,7 @@ internal sealed class ConfigWindow : Window
     private readonly Plugin plugin;
 
     internal ConfigWindow(Plugin plugin)
-        : base("Autowalk###AutoRunKeeperConfig")
+        : base("Auto move on###AutoRunKeeperConfig")
     {
         this.plugin = plugin;
 

@@ -79,7 +79,7 @@ internal sealed unsafe class AutoRunGuard
         if (skillJustEnded)
         {
             if (peakSpeed > 8f)
-                DalamudApi.Log.Information($"[Autowalk] 本次技能动作峰值速度 {peakSpeed:0} 米/秒");
+                DalamudApi.Log.Information($"[Auto move on] 本次技能动作峰值速度 {peakSpeed:0} 米/秒");
             peakSpeed = 0f;
         }
 
@@ -150,7 +150,7 @@ internal sealed unsafe class AutoRunGuard
 
         if (GameAutoRun != lastAutoRun)
             DalamudApi.Log.Debug(
-                $"[Autowalk] 自动前进变化 {lastAutoRun} -> {GameAutoRun}（施法={IsCasting} 动画锁={AnimationLock:0.00} 意图={intentOn}）");
+                $"[Auto move on] 自动前进变化 {lastAutoRun} -> {GameAutoRun}（施法={IsCasting} 动画锁={AnimationLock:0.00} 意图={intentOn}）");
 
         lastAutoRun = ReadAutoRun();
     }
@@ -197,7 +197,7 @@ internal sealed unsafe class AutoRunGuard
         intentOn = false;
         LastReason = $"用户接管：{reason}";
 
-        DalamudApi.Log.Information($"[Autowalk] 用户接管（{reason}），取消自动前进");
+        DalamudApi.Log.Information($"[Auto move on] 用户接管（{reason}），取消自动前进");
 
         try
         {
@@ -205,7 +205,7 @@ internal sealed unsafe class AutoRunGuard
         }
         catch (Exception ex)
         {
-            DalamudApi.Log.Error(ex, "[Autowalk] 发送 /automove off 失败");
+            DalamudApi.Log.Error(ex, "[Auto move on] 发送 /automove off 失败");
         }
     }
 
@@ -226,7 +226,7 @@ internal sealed unsafe class AutoRunGuard
         }
         catch (Exception ex)
         {
-            DalamudApi.Log.Error(ex, "[Autowalk] 恢复朝向失败");
+            DalamudApi.Log.Error(ex, "[Auto move on] 恢复朝向失败");
         }
     }
 
@@ -250,11 +250,11 @@ internal sealed unsafe class AutoRunGuard
         try
         {
             SendGameCommand("/automove on");
-            DalamudApi.Log.Debug($"[Autowalk] 补回自动前进（{reason}，累计 {recoverCount}）");
+            DalamudApi.Log.Debug($"[Auto move on] 补回自动前进（{reason}，累计 {recoverCount}）");
         }
         catch (Exception ex)
         {
-            DalamudApi.Log.Error(ex, "[Autowalk] 发送 /automove on 失败");
+            DalamudApi.Log.Error(ex, "[Auto move on] 发送 /automove on 失败");
         }
     }
 
@@ -267,7 +267,7 @@ internal sealed unsafe class AutoRunGuard
         var uiModule = global::FFXIVClientStructs.FFXIV.Client.UI.UIModule.Instance();
         if (uiModule == null)
         {
-            DalamudApi.Log.Warning("[Autowalk] UIModule 不可用，无法发送命令");
+            DalamudApi.Log.Warning("[Auto move on] UIModule 不可用，无法发送命令");
             return;
         }
 
@@ -302,7 +302,7 @@ internal sealed unsafe class AutoRunGuard
         }
         catch (Exception ex)
         {
-            DalamudApi.Log.Error(ex, "[Autowalk] 读取移动输入失败");
+            DalamudApi.Log.Error(ex, "[Auto move on] 读取移动输入失败");
             return false;
         }
     }
@@ -324,7 +324,7 @@ internal sealed unsafe class AutoRunGuard
         }
         catch (Exception ex)
         {
-            DalamudApi.Log.Error(ex, "[Autowalk] 读取自动前进状态失败");
+            DalamudApi.Log.Error(ex, "[Auto move on] 读取自动前进状态失败");
             return false;
         }
     }
@@ -338,7 +338,7 @@ internal sealed unsafe class AutoRunGuard
         }
         catch (Exception ex)
         {
-            DalamudApi.Log.Error(ex, "[Autowalk] 读取动画锁失败");
+            DalamudApi.Log.Error(ex, "[Auto move on] 读取动画锁失败");
             return 0f;
         }
     }
