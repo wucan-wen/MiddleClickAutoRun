@@ -7,15 +7,14 @@ using FFXIVClientStructs.FFXIV.Client.Game.Control;
 namespace AutoRunKeeper.System;
 
 /// <summary>
-///     自动前进守护核心。两套逻辑完全独立，由设置里的「工作模式」切换：
-///     · 跟随游戏（FollowGame）：用游戏自己的自动前进开关键，插件只补回被技能打断的部分。
-///     · 中键开关（MiddleMouse）：中键按一次一直保持前进，再按一次停止，插件自己维护状态。
-///     两套共用「用户接管」信号：按 WASD、走到目标附近、用位移技能，都会立刻停止。
+///     保持前进的核心。
+///     开关就是鼠标中键：按一次开始按住「左键 + 右键」（游戏原生的前进方式），再按一次松开。
+///     这个状态不是游戏的自动前进，用技能不会被打断，所以没有任何补回逻辑。
+///     用户接管信号（按 WASD、位移技能、走到目标附近）会立刻松开。
 /// </summary>
 internal sealed unsafe class AutoRunGuard
 {
     private const int VkMiddleMouse = 0x04;
-    private const int VkRightMouse = 0x02;
 
     private const uint MouseEventLeftDown = 0x0002;
     private const uint MouseEventLeftUp = 0x0004;
@@ -26,14 +25,7 @@ internal sealed unsafe class AutoRunGuard
     private bool wasBusy;
     private bool lastMiddleDown;
     private bool lastMoving;
-    private bool lastAutoRun;
-    private long lastBusyAt = long.MinValue / 2;
-    private long lastRecoverAt = long.MinValue / 2;
-    private long ignoreGameStateUntil;
-    private long lastMouseHoldAt = long.MinValue / 2;
-    private long lastDiagAt;
-    private global::System.Numerics.Vector3? lastDiagPos;
-    private int recoverCount;
+    private int runCount;
     private float lastTargetDist = -1f;
     private bool targetStopArmed = true;
     private float idleFacing;
@@ -42,21 +34,17 @@ internal sealed unsafe class AutoRunGuard
     private global::System.Numerics.Vector3 lastPos;
     private float peakSpeed;
 
-    /// <summary>用户意图：是否要保持前进。</summary>
+    /// <summary>是否正在保持前进。</summary>
     internal bool PlayerIntent => intentOn;
-
-    /// <summary>游戏当前的真实自动前进状态。</summary>
-    internal bool GameAutoRun { get; private set; }
 
     internal bool IsCasting { get; private set; }
 
     internal float AnimationLock { get; private set; }
 
-    internal int RecoverCount => recoverCount;
+    /// <summary>本次会话累计开启次数。</summary>
+    internal int RunCount => runCount;
 
     internal string LastReason { get; private set; } = "还没触发过";
-
-    internal long LastRecoverAt => lastRecoverAt;
 
     internal void Update()
     {
@@ -70,7 +58,6 @@ internal sealed unsafe class AutoRunGuard
 
         IsCasting = DalamudApi.Condition[ConditionFlag.Casting] || DalamudApi.Condition[ConditionFlag.Casting87];
         AnimationLock = ReadAnimationLock();
-        GameAutoRun = ReadAutoRun();
 
         var busy = IsCasting || AnimationLock > 0.05f;
 
@@ -80,20 +67,13 @@ internal sealed unsafe class AutoRunGuard
         if (busy && !wasBusy)
             facingBefore = idleFacing;
 
-        if (busy)
-            lastBusyAt = now;
-
         var skillJustEnded = !busy && wasBusy;
         wasBusy = busy;
 
         if (skillJustEnded)
-        {
-            if (peakSpeed > 8f)
-                DalamudApi.Log.Debug($"[Auto move on] 本次技能动作峰值速度 {peakSpeed:0} 米/秒");
             peakSpeed = 0f;
-        }
 
-        // 继续原有面向：技能动作期间压住朝向，避免被技能转过去后先往回走一小段
+        // 继续原有面向：技能动作期间压住朝向，避免被技能转过去后走偏
         if (Plugin.Config.KeepFacing && intentOn)
         {
             var drift = MathF.Abs(WrapAngle(rotation - facingBefore));
@@ -101,18 +81,15 @@ internal sealed unsafe class AutoRunGuard
                 RestoreFacing(facingBefore);
         }
 
-        // ---- 两套模式各自决定「要不要保持前进」 ----
-        if (Plugin.Config.Mode == AutoRunMode.MiddleMouse)
-            UpdateMiddleMouseMode(now, busy);
-        else
-            UpdateFollowGameMode(now, busy);
+        // ---- 中键开关 ----
+        var middleDown = IsMouseDown(VkMiddleMouse);
+        if (middleDown && !lastMiddleDown)
+            Toggle("中键");
+        lastMiddleDown = middleDown;
 
-        // ---- 共用的「我要自己控制」信号 ----
+        // ---- 用户接管信号 ----
         var moving = ReadMoveInput();
-        var wasdCountsAsTakeover = Plugin.Config.Mode == AutoRunMode.MiddleMouse
-            ? intentOn                     // 中键模式：只要开着，按移动键就是接管
-            : intentOn && !GameAutoRun;    // 跟随模式：游戏自己会因移动键关掉自动前进，关掉后再算接管
-        if (moving && !lastMoving && wasdCountsAsTakeover)
+        if (moving && !lastMoving && intentOn)
             CancelByUser("手动移动输入（WASD）");
         lastMoving = moving;
 
@@ -142,160 +119,31 @@ internal sealed unsafe class AutoRunGuard
         {
             CancelByUser($"位移技能（{speed:0} 米/秒）");
         }
-
-        if (GameAutoRun != lastAutoRun)
-        {
-            DalamudApi.Log.Debug(
-                $"[Auto move on] 自动前进变化 {lastAutoRun} -> {GameAutoRun}（施法={IsCasting} 动画锁={AnimationLock:0.00} 意图={intentOn} 模式={Plugin.Config.Mode}）");
-            lastAutoRun = GameAutoRun;
-        }
     }
 
-    /// <summary>
-    ///     中键开关模式：中键开 / 中键关，开着就一直按住「左键 + 右键」——这是原生的前进方式，
-    ///     用技能不会打断，所以这里没有任何补回逻辑。
-    /// </summary>
-    private void UpdateMiddleMouseMode(long now, bool busy)
-    {
-        var middleDown = IsMouseDown(VkMiddleMouse);
-        if (middleDown && !lastMiddleDown)
-        {
-            Toggle("中键");
-        }
-
-        lastMiddleDown = middleDown;
-    }
-
-    /// <summary>切换保持前进的开 / 关。</summary>
+    /// <summary>切换保持前进的开 / 关（中键与窗口按钮共用）。</summary>
     internal void Toggle(string source)
     {
         intentOn = !intentOn;
-        LastReason = intentOn ? $"{source}开启" : $"{source}取消";
+        LastReason = intentOn ? $"{source}开启" : $"{source}停止";
 
         if (intentOn)
+        {
+            runCount++;
             HoldForward();
+        }
         else
+        {
             ReleaseForward();
-
-        DalamudApi.Log.Information($"[Auto move on] {source}{(intentOn ? "开启" : "取消")}按住前进");
-    }
-
-    /// <summary>模拟按住「左键 + 右键」（原生前进）。</summary>
-    private static void HoldForward()
-    {
-        try
-        {
-            mouse_event(MouseEventLeftDown, 0, 0, 0, nint.Zero);
-            mouse_event(MouseEventRightDown, 0, 0, 0, nint.Zero);
-        }
-        catch (Exception ex)
-        {
-            DalamudApi.Log.Error(ex, "[Auto move on] 按下左右键失败");
-        }
-    }
-
-    /// <summary>松开左右键。</summary>
-    private static void ReleaseForward()
-    {
-        try
-        {
-            mouse_event(MouseEventLeftUp, 0, 0, 0, nint.Zero);
-            mouse_event(MouseEventRightUp, 0, 0, 0, nint.Zero);
-        }
-        catch (Exception ex)
-        {
-            DalamudApi.Log.Error(ex, "[Auto move on] 松开左右键失败");
-        }
-    }
-
-    /// <summary>每帧确认左右键仍处于按住状态，被系统/游戏丢掉时补发一次。</summary>
-    private void EnsureMouseForwardHeld(long now)
-    {
-        if (now - lastMouseHoldAt < 250)
-            return;
-
-        lastMouseHoldAt = now;
-
-        if (!IsMouseForwardHeld())
-        {
-            HoldMouseForward();
-            DalamudApi.Log.Debug("[Auto move on] 左右键按住状态丢失，已补发");
-        }
-    }
-
-    /// <summary>游戏是否认为左右键同时按住。</summary>
-    private static unsafe bool IsMouseForwardHeld()
-    {
-        try
-        {
-            var inputManager = InputManager.Instance();
-            if (inputManager == null)
-                return false;
-
-            var held = inputManager->HeldMouseButtons;
-            return held.HasFlag(InputManager.MouseButtonHoldState.Left)
-                   && held.HasFlag(InputManager.MouseButtonHoldState.Right);
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
-    /// <summary>发送鼠标左右键按下（模拟原生「左右键同按 = 前进」）。</summary>
-    private static void HoldMouseForward()
-    {
-        try
-        {
-            mouse_event(MouseEventLeftDown, 0, 0, 0, IntPtr.Zero);
-            mouse_event(MouseEventRightDown, 0, 0, 0, IntPtr.Zero);
-        }
-        catch (Exception ex)
-        {
-            DalamudApi.Log.Error(ex, "[Auto move on] 发送左右键按下失败");
-        }
-    }
-
-    /// <summary>松开左右键。</summary>
-    private void ReleaseMouseForward()
-    {
-        try
-        {
-            mouse_event(MouseEventLeftUp, 0, 0, 0, IntPtr.Zero);
-            mouse_event(MouseEventRightUp, 0, 0, 0, IntPtr.Zero);
-        }
-        catch (Exception ex)
-        {
-            DalamudApi.Log.Error(ex, "[Auto move on] 发送左右键松开失败");
-        }
-    }
-
-    /// <summary>跟随游戏模式：意图跟着游戏的自动前进状态走，只在技能上下文内补回。</summary>
-    private void UpdateFollowGameMode(long now, bool busy)
-    {
-        if (GameAutoRun && !lastAutoRun)
-            intentOn = true;
-
-        var inSkillWindow = busy || now - lastBusyAt <= Plugin.Config.GraceMs;
-
-        // 非技能上下文被关掉 = 用户自己停的
-        if (!GameAutoRun && lastAutoRun && !inSkillWindow)
-        {
-            intentOn = false;
-            LastReason = "用户手动关闭（不干预）";
         }
 
-        // 右键按住 = 在调面向/视角，此时不补，避免反复重置导致移动一顿一顿
-        var rightMouseDown = IsMouseDown(VkRightMouse);
-
-        if (intentOn && !GameAutoRun && inSkillWindow && !rightMouseDown)
-            Recover(now, busy ? "技能动作中补回" : "技能结束后补回");
+        DalamudApi.Log.Information($"[Auto move on] {source}{(intentOn ? "开启" : "停止")}保持前进");
     }
 
     /// <summary>统计清零。</summary>
     internal void ResetStats()
     {
-        recoverCount = 0;
+        runCount = 0;
         LastReason = "还没触发过";
     }
 
@@ -327,75 +175,41 @@ internal sealed unsafe class AutoRunGuard
         lastTargetDist = flat;
     }
 
-    /// <summary>用户接管：立即取消并停止守护。中键模式松开注入的左右键，跟随模式关掉自动前进。</summary>
+    /// <summary>用户接管：立刻松开前进键。</summary>
     private void CancelByUser(string reason)
     {
         intentOn = false;
-        ignoreGameStateUntil = Environment.TickCount64 + 800;
         LastReason = $"用户接管：{reason}";
 
-        DalamudApi.Log.Information($"[Auto move on] 用户接管（{reason}），取消自动前进");
-
-        if (Plugin.Config.Mode == AutoRunMode.MiddleMouse)
-            ReleaseForward();
-        else
-            WriteForward(false);
+        DalamudApi.Log.Information($"[Auto move on] 用户接管（{reason}），停止前进");
+        ReleaseForward();
     }
 
-    private void Recover(long now, string reason)
-    {
-        if (now - lastRecoverAt < Plugin.Config.RecoverIntervalMs)
-            return;
-
-        lastRecoverAt = now;
-        recoverCount++;
-        LastReason = reason;
-        WriteForward(true);
-    }
-
-    /// <summary>
-    ///     把自动前进设为指定值。
-    ///     开：优先直接写标志（快，技能打断能当帧续上），失败回退聊天命令。
-    ///     关：一律用游戏自己的命令 —— 直接写这个标志会被游戏当帧刷回，只有命令能真正停掉。
-    /// </summary>
-    private void WriteForward(bool value)
+    /// <summary>模拟按住「左键 + 右键」（游戏原生前进）。</summary>
+    private static void HoldForward()
     {
         try
         {
-            if (AutoRunFlag.TrySet(value))
-            {
-                if (value)
-                    return;
-            }
-
-            SendGameCommand(value ? "/automove on" : "/automove off");
+            mouse_event(MouseEventLeftDown, 0, 0, 0, nint.Zero);
+            mouse_event(MouseEventRightDown, 0, 0, 0, nint.Zero);
         }
         catch (Exception ex)
         {
-            DalamudApi.Log.Error(ex, $"[Auto move on] 设置自动前进（{value}）失败");
+            DalamudApi.Log.Error(ex, "[Auto move on] 按下左右键失败");
         }
     }
 
-    /// <summary>
-    ///     走游戏自己的聊天命令通道（等同在聊天框手打）。
-    ///     注意：不能用 ICommandManager.ProcessCommand —— 它只查插件注册的命令，不会转发给游戏。
-    /// </summary>
-    private static unsafe void SendGameCommand(string command)
+    /// <summary>松开左右键。</summary>
+    private static void ReleaseForward()
     {
-        var uiModule = global::FFXIVClientStructs.FFXIV.Client.UI.UIModule.Instance();
-        if (uiModule == null)
-            return;
-
-        var utf8 = new global::FFXIVClientStructs.FFXIV.Client.System.String.Utf8String();
-        utf8.Ctor();
         try
         {
-            utf8.SetString(command);
-            uiModule->ProcessChatBoxEntry(&utf8);
+            mouse_event(MouseEventLeftUp, 0, 0, 0, nint.Zero);
+            mouse_event(MouseEventRightUp, 0, 0, 0, nint.Zero);
         }
-        finally
+        catch (Exception ex)
         {
-            utf8.Dtor();
+            DalamudApi.Log.Error(ex, "[Auto move on] 松开左右键失败");
         }
     }
 
@@ -450,7 +264,6 @@ internal sealed unsafe class AutoRunGuard
         return angle;
     }
 
-    /// <summary>读物理鼠标键状态。</summary>
     private static bool IsMouseDown(int virtualKey)
     {
         try
@@ -469,7 +282,7 @@ internal sealed unsafe class AutoRunGuard
     [DllImport("user32.dll")]
     private static extern void mouse_event(uint flags, uint dx, uint dy, uint data, nint extraInfo);
 
-    /// <summary>插件卸载时把按住的键松开，别留给游戏。</summary>
+    /// <summary>插件卸载/登出前松开按键，别把状态留给游戏。</summary>
     internal void Shutdown()
     {
         if (intentOn)
@@ -479,24 +292,12 @@ internal sealed unsafe class AutoRunGuard
 
     private void ResetInstance()
     {
+        if (intentOn)
+            ReleaseForward();
         intentOn = false;
         wasBusy = false;
         lastMoving = false;
-        lastMiddleDown = false;
         lastTargetDist = -1f;
-    }
-
-    private static bool ReadAutoRun()
-    {
-        try
-        {
-            return InputManager.IsAutoRunning();
-        }
-        catch (Exception ex)
-        {
-            DalamudApi.Log.Error(ex, "[Auto move on] 读取自动前进状态失败");
-            return false;
-        }
     }
 
     private static float ReadAnimationLock()
