@@ -109,7 +109,10 @@ internal sealed unsafe class AutoRunGuard
 
         // ---- 共用的「我要自己控制」信号 ----
         var moving = ReadMoveInput();
-        if (moving && !lastMoving && intentOn && !GameAutoRun)
+        var wasdCountsAsTakeover = Plugin.Config.Mode == AutoRunMode.MiddleMouse
+            ? intentOn                     // 中键模式：只要开着，按移动键就是接管
+            : intentOn && !GameAutoRun;    // 跟随模式：游戏自己会因移动键关掉自动前进，关掉后再算接管
+        if (moving && !lastMoving && wasdCountsAsTakeover)
             CancelByUser("手动移动输入（WASD）");
         lastMoving = moving;
 
@@ -324,7 +327,7 @@ internal sealed unsafe class AutoRunGuard
         lastTargetDist = flat;
     }
 
-    /// <summary>用户接管：立即取消并停止守护。</summary>
+    /// <summary>用户接管：立即取消并停止守护。中键模式松开注入的左右键，跟随模式关掉自动前进。</summary>
     private void CancelByUser(string reason)
     {
         intentOn = false;
@@ -332,7 +335,11 @@ internal sealed unsafe class AutoRunGuard
         LastReason = $"用户接管：{reason}";
 
         DalamudApi.Log.Information($"[Auto move on] 用户接管（{reason}），取消自动前进");
-        WriteForward(false);
+
+        if (Plugin.Config.Mode == AutoRunMode.MiddleMouse)
+            ReleaseForward();
+        else
+            WriteForward(false);
     }
 
     private void Recover(long now, string reason)
