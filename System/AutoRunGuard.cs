@@ -16,6 +16,7 @@ namespace AutoRunKeeper.System;
 /// </summary>
 internal sealed unsafe class AutoRunGuard
 {
+    private const int VkLeftMouse = 0x01;
     private const int VkRightMouse = 0x02;
 
     private bool lastAutoRun;
@@ -152,7 +153,12 @@ internal sealed unsafe class AutoRunGuard
         }
 
         // 右键按住 = 正在手动调整面向/视角，此时不干预，避免自动前进被反复重置而卡顿
-        var rightMouseDown = IsRightMouseDown();
+        var rightMouseDown = IsMouseDown(VkRightMouse);
+        var bothMouseDown = rightMouseDown && IsMouseDown(VkLeftMouse);
+
+        // 左右键同时按住 = 游戏里的手动前进，等同于用户要自己走
+        if (bothMouseDown && intentOn)
+            CancelByUser("左右键同时按住（手动前进）");
 
         // 技能上下文内持续补回
         if (intentOn && !GameAutoRun && inSkillWindow && !rightMouseDown &&
@@ -336,12 +342,12 @@ internal sealed unsafe class AutoRunGuard
         lastTargetDist = -1f;
     }
 
-    /// <summary>右键是否按住（游戏里右键拖动 = 调整视角/面向）。读物理键状态，比游戏结构体稳。</summary>
-    private static bool IsRightMouseDown()
+    /// <summary>读物理鼠标键状态（比游戏结构体稳）。</summary>
+    private static bool IsMouseDown(int virtualKey)
     {
         try
         {
-            return (GetAsyncKeyState(VkRightMouse) & 0x8000) != 0;
+            return (GetAsyncKeyState(virtualKey) & 0x8000) != 0;
         }
         catch
         {
