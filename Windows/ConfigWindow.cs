@@ -45,9 +45,28 @@ internal sealed class ConfigWindow : Window
     private void DrawGameKeySwitch(Configuration config)
     {
         var usesGameKey = config.GameHandlesAutoRun;
-        if (ImGui.Button(usesGameKey ? "已用游戏键位：点此改回插件接管" : "改用游戏键位（中键 = 自动前进）"))
+        if (ImGui.Button(usesGameKey ? "改回插件接管（还原游戏键位）" : "把游戏键位改成：自动前进 = 鼠标中键"))
         {
-            config.GameHandlesAutoRun = !usesGameKey;
+            if (!usesGameKey)
+            {
+                // 先记下原键位，再把自动前进绑到鼠标中键，之后插件完全停手
+                if (KeybindBridge.TryReadAutoRun(out var slot0, out var slot1))
+                {
+                    config.OriginalAutoRunSlot0 = slot0;
+                    config.OriginalAutoRunSlot1 = slot1;
+                    config.OriginalAutoRunSaved = true;
+                }
+
+                config.GameHandlesAutoRun = KeybindBridge.TrySetAutoRunToMiddleMouse();
+            }
+            else
+            {
+                if (config.OriginalAutoRunSaved)
+                    KeybindBridge.TryRestoreAutoRun(config.OriginalAutoRunSlot0, config.OriginalAutoRunSlot1);
+
+                config.GameHandlesAutoRun = false;
+            }
+
             config.Save();
         }
 

@@ -10,6 +10,14 @@ public sealed class Configuration : IPluginConfiguration
     /// <summary>游戏里已把「自动前进」绑到鼠标中键：插件完全停手，不触发任何功能。</summary>
     public bool GameHandlesAutoRun { get; set; }
 
+    /// <summary>改键位前游戏「自动前进」的原键位（两个槽，各 2 字节），关闭开关时还原。</summary>
+    public uint OriginalAutoRunSlot0 { get; set; }
+
+    public uint OriginalAutoRunSlot1 { get; set; }
+
+    /// <summary>改键位前是否已记录原键位。</summary>
+    public bool OriginalAutoRunSaved { get; set; }
+
     /// <summary>走到当前目标附近时自动停止前进。</summary>
     public bool StopNearTarget { get; set; } = true;
 
