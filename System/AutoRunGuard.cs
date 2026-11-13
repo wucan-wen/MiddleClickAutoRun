@@ -29,6 +29,7 @@ internal sealed unsafe class AutoRunGuard
     private long lastPosAt;
     private global::System.Numerics.Vector3 lastPos;
     private float peakSpeed;
+    private long lastSuccessAt = long.MinValue / 2;
 
     /// <summary>用户意图：他想不想自动前进。</summary>
     internal bool PlayerIntent => intentOn;
@@ -130,7 +131,11 @@ internal sealed unsafe class AutoRunGuard
 
         // 玩家开启自动前进 → 记录意图，开始守护
         if (GameAutoRun && !lastAutoRun)
+        {
             intentOn = true;
+            if (now - lastRecoverAt < 1200)
+                lastSuccessAt = now; // 刚补回就恢复成功，记一下冷却
+        }
 
         var inSkillWindow = busy || now - lastBusyAt <= Plugin.Config.GraceMs;
 
@@ -141,8 +146,14 @@ internal sealed unsafe class AutoRunGuard
             LastReason = "用户手动关闭（不干预）";
         }
 
+        // 右键按住 = 正在手动调整面向/视角，此时不干预，避免自动前进被反复重置而卡顿
+        var rightMouseDown = IsRightMouseDown();
+
+        // 刚补回成功的一小段时间内不再发命令，避免来回拉扯
+        var justRecovered = now - lastSuccessAt <= Plugin.Config.SuccessCooldownMs;
+
         // 技能上下文内持续补回
-        if (intentOn && !GameAutoRun && inSkillWindow &&
+        if (intentOn && !GameAutoRun && inSkillWindow && !rightMouseDown && !justRecovered &&
             now - lastRecoverAt >= Plugin.Config.RecoverIntervalMs)
         {
             Recover(now, busy ? "技能动作中补回" : "技能结束后补回");
@@ -314,6 +325,20 @@ internal sealed unsafe class AutoRunGuard
         wasBusy = false;
         lastMoving = false;
         lastTargetDist = -1f;
+    }
+
+    /// <summary>右键是否按住（游戏里右键拖动 = 调整视角/面向）。</summary>
+    private static unsafe bool IsRightMouseDown()
+    {
+        try
+        {
+            var inputManager = InputManager.Instance();
+            return inputManager != null && inputManager->HeldMouseButtons.HasFlag(InputManager.MouseButtonHoldState.Right);
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private static bool ReadAutoRun()

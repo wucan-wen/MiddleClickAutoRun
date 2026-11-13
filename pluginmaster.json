@@ -3,7 +3,7 @@
     "Author": "wucan-wen",
     "Name": "Auto move on",
     "InternalName": "AutoRunKeeper",
-    "AssemblyVersion": "1.0.0.1",
+    "AssemblyVersion": "1.0.0.2",
     "Description": "开着自动前进放技能时，游戏会取消自动前进，技能结束人就停下不走了。\n\n本插件在后台盯着自动前进状态：只要是「技能导致的取消」，就在技能动作中及结束后的短时间内自动补回；\n你自己主动停的（按移动键、走到目标附近、或自己关掉自动前进）不会强行打开。\n\n功能：\n- 插件启用即生效，在插件列表停用后完全不干预；没有任何聊天命令，也不往聊天框打任何提示\n- 技能/施法结束自动补回自动前进\n- 可调补回时间窗与补回间隔\n- 到达当前目标附近自动停止（距离可调，只有靠近才停，远离不拦）\n- 使用位移技能自动停止（判定速度可调）\n- 可选「继续原有面向」：技能结束后转回原方向，不会被技能带着拐弯\n\n设置窗口从插件列表里本插件的设置按钮（齿轮）打开。",
     "Punchline": "放技能打断自动前进后自动补回，走位不被打断。",
     "ApplicableVersion": "any",
@@ -19,12 +19,13 @@
     ],
     "RepoUrl": "https://github.com/wucan-wen/AutoMoveOn",
     "AcceptsFeedback": true,
-    "DownloadLinkInstall": "https://raw.githubusercontent.com/wucan-wen/AutoMoveOn/main/dist/AutoMoveOn-1.0.0.1.zip",
-    "DownloadLinkUpdate": "https://raw.githubusercontent.com/wucan-wen/AutoMoveOn/main/dist/AutoMoveOn-1.0.0.1.zip",
-    "DownloadLinkTesting": "https://raw.githubusercontent.com/wucan-wen/AutoMoveOn/main/dist/AutoMoveOn-1.0.0.1.zip",
-    "LastUpdate": 1794552959,
+    "DownloadLinkInstall": "https://raw.githubusercontent.com/wucan-wen/AutoMoveOn/main/dist/AutoMoveOn-1.0.0.2.zip",
+    "DownloadLinkUpdate": "https://raw.githubusercontent.com/wucan-wen/AutoMoveOn/main/dist/AutoMoveOn-1.0.0.2.zip",
+    "DownloadLinkTesting": "https://raw.githubusercontent.com/wucan-wen/AutoMoveOn/main/dist/AutoMoveOn-1.0.0.2.zip",
+    "LastUpdate": 1794553231,
     "DownloadCount": 0,
     "IsHide": false,
-    "IsTestingExclusive": false
+    "IsTestingExclusive": false,
+    "Changelog": "右键调整面向时不再反复补回，补回后加冷却，移动更顺"
   }
 ]

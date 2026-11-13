@@ -11,7 +11,10 @@ public sealed class Configuration : IPluginConfiguration
     public int GraceMs { get; set; } = 500;
 
     /// <summary>两次补回之间的最小间隔（毫秒）。</summary>
-    public int RecoverIntervalMs { get; set; } = 180;
+    public int RecoverIntervalMs { get; set; } = 300;
+
+    /// <summary>补回成功后多久内不再重复补（毫秒），避免来回拉扯导致移动生硬。</summary>
+    public int SuccessCooldownMs { get; set; } = 800;
 
     /// <summary>走到当前目标附近时自动停止自动前进。</summary>
     public bool StopNearTarget { get; set; } = true;
