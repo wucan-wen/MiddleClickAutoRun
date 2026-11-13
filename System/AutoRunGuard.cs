@@ -29,6 +29,7 @@ internal sealed unsafe class AutoRunGuard
     private bool targetStopArmed = true;
     private float idleFacing;
     private float facingBefore;
+    private long ignoreGameStateUntil;
     private long lastPosAt;
     private global::System.Numerics.Vector3 lastPos;
     private float peakSpeed;
@@ -106,13 +107,15 @@ internal sealed unsafe class AutoRunGuard
             else
                 WriteForward(false);
 
+            ignoreGameStateUntil = now + 800;
             DalamudApi.Log.Information($"[Auto move on] 中键{(intentOn ? "开启" : "取消")}保持前进");
         }
 
         lastMiddleDown = middleDown;
 
         // 兼容：你自己用游戏自己的自动前进键开起来，也算开启
-        if (!intentOn && GameAutoRun)
+        // （刚按中键取消后的静默窗口内不生效，否则会被游戏里的旧状态立刻拉回开启）
+        if (!intentOn && GameAutoRun && now > ignoreGameStateUntil)
             intentOn = true;
 
         // ---- 以下都是「我要自己控制」的信号 ----
@@ -201,6 +204,7 @@ internal sealed unsafe class AutoRunGuard
     private void CancelByUser(string reason)
     {
         intentOn = false;
+        ignoreGameStateUntil = Environment.TickCount64 + 800;
         LastReason = $"用户接管：{reason}";
 
         DalamudApi.Log.Information($"[Auto move on] 用户接管（{reason}），取消自动前进");
